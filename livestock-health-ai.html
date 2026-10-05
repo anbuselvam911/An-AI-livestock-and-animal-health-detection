@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Livestock Health AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: "rgb(var(--ink) / <alpha-value>)",
+          paper: "rgb(var(--paper) / <alpha-value>)",
+          surface: "rgb(var(--surface) / <alpha-value>)",
+          field: "rgb(var(--field) / <alpha-value>)",
+          hay: "rgb(var(--hay) / <alpha-value>)",
+          alarm: "rgb(var(--alarm) / <alpha-value>)",
+          mist: "rgb(var(--mist) / <alpha-value>)",
+        },
+        fontFamily: {
+          display: ['"Bricolage Grotesque"', "ui-sans-serif", "system-ui", "sans-serif"],
+          body: ['"Public Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  :root {
+    --ink: 31 42 36;
+    --paper: 246 248 243;
+    --surface: 255 255 255;
+    --field: 62 107 74;
+    --hay: 217 164 65;
+    --alarm: 179 64 47;
+    --mist: 227 233 223;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: 232 238 230;
+      --paper: 20 26 22;
+      --surface: 29 38 32;
+      --field: 111 170 128;
+      --hay: 226 178 85;
+      --alarm: 224 112 94;
+      --mist: 38 49 42;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: 232 238 230;
+    --paper: 20 26 22;
+    --surface: 29 38 32;
+    --field: 111 170 128;
+    --hay: 226 178 85;
+    --alarm: 224 112 94;
+    --mist: 38 49 42;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { background: rgb(var(--paper)); color: rgb(var(--ink)); font-family: "Public Sans", ui-sans-serif, system-ui, sans-serif; }
+  :focus-visible { outline: 3px solid rgb(var(--hay)); outline-offset: 2px; }
+  .field-input { width: 100%; border-radius: 0.375rem; border: 1px solid rgb(var(--ink) / 0.25); background: rgb(var(--surface)); padding: 0.625rem 0.75rem; font-size: 1rem; color: inherit; }
+  .field-input:focus { border-color: rgb(var(--field)); }
+  @media (prefers-reduced-motion: reduce) { .animate-pulse { animation: none; } }
+</style>
+</head>
+<body class="min-h-screen antialiased">
+
+<header class="border-b border-ink/15 bg-ink text-paper">
+  <div class="mx-auto flex max-w-6xl items-baseline justify-between px-5 py-4">
+    <h1 class="font-display text-xl font-bold">Livestock Health AI</h1>
+    <p class="hidden text-sm opacity-70 sm:block">First-look triage for farmers</p>
+  </div>
+</header>
+
+<main class="mx-auto grid max-w-6xl gap-8 px-5 py-8 lg:grid-cols-[minmax(0,26rem)_1fr]">
+
+  <form id="form" class="space-y-5" novalidate>
+    <div>
+      <h2 class="font-display text-3xl font-bold leading-tight">What is wrong with the animal?</h2>
+      <p class="mt-2 max-w-prose opacity-70">Describe what you see and add photos. You get a likely cause, how urgent it is, and what to do next.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <label class="block">
+        <span class="mb-1 block text-sm font-semibold">Animal</span>
+        <select id="species" class="field-input">
+          <option>Cattle</option><option>Buffalo</option><option>Goat</option><option>Sheep</option>
+          <option>Pig</option><option>Poultry</option><option>Horse</option><option>Other</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="mb-1 block text-sm font-semibold">Age</span>
+        <input id="age" class="field-input" placeholder="e.g. 3 years" />
+      </label>
+    </div>
+
+    <label class="block">
+      <span class="mb-1 block text-sm font-semibold">Symptoms</span>
+      <textarea id="symptoms" rows="5" class="field-input" placeholder="Not eating since morning, drooling, limping on the front left leg, blisters near the mouth..."></textarea>
+    </label>
+
+    <label class="block">
+      <span class="mb-1 block text-sm font-semibold">When did it start?</span>
+      <input id="duration" class="field-input" placeholder="e.g. 2 days ago" />
+    </label>
+
+    <div id="photoBlock">
+      <span class="mb-1 block text-sm font-semibold">Photos (up to <span id="maxPhotos">3</span>)</span>
+      <div id="thumbs" class="flex flex-wrap gap-3">
+        <label id="addPhoto" class="grid h-24 w-24 cursor-pointer place-items-center rounded-md border-2 border-dashed border-field/60 text-center text-sm font-medium text-field hover:bg-mist">
+          Add photo
+          <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" />
+        </label>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend class="mb-1 text-sm font-semibold">Analysis speed</legend>
+      <div class="flex gap-4 text-base">
+        <label class="flex items-center gap-2"><input type="radio" name="tier" value="quick" checked class="accent-[rgb(var(--field))]" /> Fast</label>
+        <label class="flex items-center gap-2"><input type="radio" name="tier" value="default" class="accent-[rgb(var(--field))]" /> More careful</label>
+      </div>
+    </fieldset>
+
+    <div class="flex gap-3">
+      <button id="submitBtn" type="submit" class="flex-1 rounded-md bg-field px-4 py-3 text-base font-semibold text-paper transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">Check health</button>
+      <button id="stopBtn" type="button" hidden class="rounded-md border border-ink/30 px-4 py-3 text-base font-semibold">Stop</button>
+    </div>
+
+    <p id="error" role="alert" hidden class="rounded-md border border-alarm/50 bg-alarm/10 px-3 py-2 text-sm text-alarm"></p>
+  </form>
+
+  <section id="results" aria-live="polite" class="min-w-0">
+    <div id="empty" class="grid min-h-64 place-items-center rounded-lg border-2 border-dashed border-ink/20 p-8 text-center opacity-60">
+      Your assessment will appear here.
+    </div>
+    <div id="loading" hidden class="space-y-3">
+      <p class="font-medium">Thinking...</p>
+      <div class="h-16 animate-pulse rounded-lg bg-mist"></div>
+      <div class="h-28 animate-pulse rounded-lg bg-mist"></div>
+      <div class="h-28 animate-pulse rounded-lg bg-mist"></div>
+    </div>
+    <div id="output" hidden></div>
+  </section>
+</main>
+
+<footer class="mx-auto max-w-6xl px-5 pb-10 text-sm opacity-60">
+  This tool gives general guidance only. It does not replace a veterinarian. For a sick animal, contact a vet.
+</footer>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), submitBtn = $("submitBtn"), stopBtn = $("stopBtn");
+  const errorEl = $("error"), emptyEl = $("empty"), loadingEl = $("loading"), outputEl = $("output");
+  const thumbs = $("thumbs"), addPhoto = $("addPhoto"), fileInput = $("fileInput");
+
+  let sample = null;
+  let maxPhotos = 3;
+  let photosOk = true;
+  let photos = []; // { file, url }
+  let ctl = null;
+
+  // ---------- Claude access (null = not available outside a Claude viewer) ----------
+  (async function init() {
+    try {
+      sample = window.claude && (await window.claude.use("sample"));
+    } catch (e) { sample = null; }
+    if (!sample) {
+      showError("AI analysis is not available here. Open this page from Claude to use it.");
+      submitBtn.disabled = true;
+      return;
+    }
+    try {
+      const caps = await sample.limits();
+      if (caps && caps.images) {
+        maxPhotos = Math.min(3, caps.images.maxCount || 3);
+        $("maxPhotos").textContent = String(maxPhotos);
+      } else {
+        photosOk = false;
+        $("photoBlock").hidden = true;
+      }
+    } catch (e) {
+      photosOk = false;
+      $("photoBlock").hidden = true;
+    }
+  })();
+
+  // ---------- helpers ----------
+  function h(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = String(text);
+    return n;
+  }
+  function showError(msg) { errorEl.textContent = msg; errorEl.hidden = !msg; }
+  function arr(v) { return Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()) : []; }
+
+  // ---------- photos ----------
+  function renderThumbs() {
+    thumbs.querySelectorAll("[data-thumb]").forEach((n) => n.remove());
+    photos.forEach((p, i) => {
+      const box = h("div", "relative h-24 w-24 overflow-hidden rounded-md border border-ink/20");
+      box.dataset.thumb = "1";
+      const img = h("img", "h-full w-full object-cover");
+      img.src = p.url;
+      img.alt = "Upload " + (i + 1);
+      const rm = h("button", "absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-sm text-white", "×");
+      rm.type = "button";
+      rm.setAttribute("aria-label", "Remove photo " + (i + 1));
+      rm.onclick = () => { URL.revokeObjectURL(p.url); photos.splice(i, 1); renderThumbs(); };
+      box.append(img, rm);
+      thumbs.insertBefore(box, addPhoto);
+    });
+    addPhoto.hidden = photos.length >= maxPhotos;
+  }
+  fileInput.addEventListener("change", () => {
+    const room = maxPhotos - photos.length;
+    Array.from(fileInput.files || []).slice(0, room).forEach((f) => {
+      photos.push({ file: f, url: URL.createObjectURL(f) });
+    });
+    fileInput.value = "";
+    renderThumbs();
+  });
+
+  // ---------- prompt ----------
+  function buildPrompt(d) {
+    return [
+      "You are a livestock health triage assistant supporting farmers.",
+      "Assess the animal using the details below" + (d.hasPhotos ? " and the attached photos." : "."),
+      "",
+      "Species: " + d.species,
+      d.age ? "Age: " + d.age : "",
+      d.duration ? "Symptoms started: " + d.duration : "",
+      "Symptoms: " + d.symptoms,
+      "",
+      "Reply with ONLY a JSON object in exactly this shape:",
+      '{"urgency":"emergency|urgent|monitor|routine","summary":"one or two plain sentences",',
+      '"conditions":[{"name":"","likelihood":"high|medium|low","why":"short reason tied to the signs"}],',
+      '"visible_signs":["what you can actually see in the photos; empty array if no photos"],',
+      '"immediate_actions":["short practical steps the farmer can take now"],',
+      '"isolate":true,"possibly_notifiable":false,',
+      '"vet_questions":["details a vet will ask"]}',
+      "",
+      "Rules:",
+      "- At most 4 conditions, most likely first.",
+      "- Use simple language; farmers read this on a phone in the field.",
+      "- Use emergency for bloat, difficulty breathing, severe bleeding, inability to stand, seizures, prolonged labor, or sudden deaths in the herd.",
+      "- Set possibly_notifiable true when signs could match a reportable disease (foot-and-mouth disease, anthrax, brucellosis, avian influenza, African swine fever, etc.).",
+      "- Never give drug doses. Recommend a vet for treatment.",
+      "- If the information is too thin, say so in the summary and list what to check next.",
+    ].filter((l) => l !== "").join("\n");
+  }
+
+  // ---------- result rendering ----------
+  const URG = {
+    emergency: { label: "Emergency: call a vet now", cls: "bg-alarm text-paper" },
+    urgent: { label: "Urgent: see a vet within 24 hours", cls: "bg-hay text-[#1f2a24]" },
+    monitor: { label: "Monitor closely", cls: "bg-field text-paper" },
+    routine: { label: "Low concern", cls: "bg-mist text-ink" },
+  };
+  const LIKE = { high: "border-l-alarm", medium: "border-l-hay", low: "border-l-field" };
+
+  function block(title, child) {
+    const wrap = h("div");
+    wrap.append(h("h3", "mb-2 font-display text-lg font-bold", title), child);
+    return wrap;
+  }
+  function list(items) {
+    const ul = h("ul", "list-disc space-y-1.5 pl-5 marker:text-field");
+    items.forEach((t) => ul.append(h("li", "", t)));
+    return ul;
+  }
+
+  function renderResult(data) {
+    outputEl.replaceChildren();
+    const root = h("div", "space-y-6");
+    const u = URG[data.urgency] || URG.monitor;
+
+    const banner = h("div", "rounded-lg px-5 py-4 " + u.cls);
+    banner.append(h("p", "font-display text-xl font-bold", u.label));
+    if (data.summary) banner.append(h("p", "mt-1 opacity-90", data.summary));
+    root.append(banner);
+
+    if (data.isolate || data.possibly_notifiable) {
+      const ul = h("ul", "space-y-2");
+      if (data.isolate) ul.append(h("li", "rounded-md border border-hay bg-hay/15 px-4 py-2.5 font-medium", "Separate this animal from the rest of the herd until a vet has seen it."));
+      if (data.possibly_notifiable) ul.append(h("li", "rounded-md border border-alarm bg-alarm/10 px-4 py-2.5 font-medium", "These signs can match a reportable disease. Contact your local veterinary authority."));
+      root.append(ul);
+    }
+
+    const conds = Array.isArray(data.conditions) ? data.conditions.slice(0, 4) : [];
+    if (conds.length) {
+      const ul = h("ul", "space-y-3");
+      conds.forEach((c) => {
+        const li = h("li", "rounded-md border border-ink/10 border-l-4 bg-surface p-4 " + (LIKE[c && c.likelihood] || ""));
+        const p = h("p", "font-semibold", (c && c.name) || "Unknown");
+        if (c && c.likelihood) p.append(h("span", "font-normal opacity-60", " (" + c.likelihood + " likelihood)"));
+        li.append(p);
+        if (c && c.why) li.append(h("p", "mt-1 opacity-80", c.why));
+        ul.append(li);
+      });
+      root.append(block("Possible conditions", ul));
+    }
+
+    const seen = arr(data.visible_signs);
+    if (seen.length) root.append(block("What the photos show", list(seen)));
+    const acts = arr(data.immediate_actions);
+    if (acts.length) root.append(block("Do now", list(acts)));
+    const qs = arr(data.vet_questions);
+    if (qs.length) root.append(block("Tell the vet", list(qs)));
+
+    outputEl.append(root);
+  }
+
+  // ---------- submit ----------
+  const ERR = {
+    not_granted: "Claude access was declined for this page. Reload and allow it to run an analysis.",
+    sampling_disabled: "Claude is not available for this account.",
+    rate_limited: "Too many requests or your usage limit was reached. Wait a bit and try again.",
+    session_expired: "Your session expired. Sign in to Claude again, then retry.",
+    image_rejected: "One of the photos could not be used. Try a different JPEG, PNG or WebP file.",
+    refused: "That request could not be analyzed. Rephrase the symptoms and try again.",
+    invalid_json: "The answer came back in the wrong format. Press Check health to try again.",
+    empty_completion: "No answer came back. Add more detail about the symptoms and try again.",
+  };
+
+  function setBusy(busy) {
+    submitBtn.disabled = busy || !sample;
+    submitBtn.textContent = busy ? "Analyzing..." : "Check health";
+    stopBtn.hidden = !busy;
+    loadingEl.hidden = !busy;
+    if (busy) { emptyEl.hidden = true; outputEl.hidden = true; }
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showError("");
+    const symptoms = $("symptoms").value.trim();
+    if (symptoms.length < 5) { showError("Describe the symptoms in a few words."); $("symptoms").focus(); return; }
+    if (!sample) return;
+
+    const useImages = photosOk && photos.length > 0;
+    const prompt = buildPrompt({
+      species: $("species").value,
+      age: $("age").value.trim(),
+      duration: $("duration").value.trim(),
+      symptoms,
+      hasPhotos: useImages,
+    });
+    const tier = form.querySelector('input[name="tier"]:checked').value;
+
+    ctl = new AbortController();
+    setBusy(true);
+    try {
+      const opts = { modelTier: tier, signal: ctl.signal, cache: false };
+      if (useImages) opts.images = photos.map((p) => p.file);
+      const data = await sample.json(prompt, opts);
+      if (!data || typeof data !== "object") throw { code: "invalid_json" };
+      renderResult(data);
+      outputEl.hidden = false;
+    } catch (err) {
+      const code = err && err.code;
+      if (code !== "cancelled") showError(ERR[code] || "Analysis failed. Please try again.");
+      emptyEl.hidden = false;
+    } finally {
+      setBusy(false);
+      ctl = null;
+    }
+  });
+
+  stopBtn.addEventListener("click", () => { if (ctl) ctl.abort(); });
+
+  renderThumbs();
+})();
+</script>
+</body>
+</html>
